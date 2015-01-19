@@ -15,58 +15,50 @@ import copy
 import thread
 import logging
 from pprint import pprint
-import pickle
 
-DISK='sda'
-logFile = '/dev/shm/iostst.log'
-stateFile = '/sys/block/'+DISK+'/stat'
-logPath=os.path.split(os.path.realpath(__file__))[0]
-def getStateContent(statFile):
-    f = open(stateFile,'r')
-    stateContent = f.read()
-    f.close
-    return stateContent
+
+PWD = os.path.dirname(os.path.realpath(__file__))
+WORKDIR = os.path.join(PWD,  '../')
+LOGPATH = os.path.join(WORKDIR, 'log/iostat.log')
+
+sys.path.append(os.path.join(WORKDIR, 'lib/'))
+
 def tonum(n):
     if type(n) == type(''):
         if n.isdigit():
             return int(n)
         return n
-def writeState(stateDict):
-    f = open(logFile,'w')
-    pickle.dump(stateDict,f)
-    f.close()
-def readLastState(stateDict):
-    global logFile
-    if not os.path.exists('/dev/shm'):
-        logFile = logPath+'/iostat.log'
-    if not  os.path.isfile(logFile):
-        writeState(stateDict)
-        return stateDict
-    st = os.stat(logFile)
-    mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime = st
-    if size == 0:
-        writeState(stateDict)
-        return stateDict
-    f = open(logFile,'r')
-    #print(f.read());
-    lastStateDict = pickle.load(f)
-    f.close()
-    writeState(stateDict)
-    return lastStateDict
 
-def setStateDict(line):
-    d = {}
-    r_ios, r_merges, r_sec, r_ticks, w_ios, w_merges, w_sec, w_ticks, ios_pgr, tot_ticks, rq_ticks = line.split()
-    del line
-    for k  in locals().items():
-    #    print k[1]
-        d[k[0]] = tonum(k[1])
-    #d = {k: tonum(v) for k, v in locals().items() }
-    d['ts'] = time.time()
-    return d
+def disk_io_counters():
+    lines = file("/proc/partitions").readlines()[2:]
+    partitions = set([line.split()[-1] for line in lines if not line.strip()[-1].isdigit()])
+
+    def line_to_dict(line):
+        major, minor, dev, r_ios, r_merges, r_sec, r_ticks, w_ios, w_merges, w_sec, w_ticks, ios_pgr, tot_ticks, rq_ticks = line.split()
+        del line
+        d = {}
+        #d = {k: tonum(v) for k, v in locals().items() }
+        for k  in locals().items():
+        #    print k[1]
+            d[k[0]] = tonum(k[1])
+            
+        d['ts'] = time.time()
+        return d
+
+    lines = file("/proc/diskstats").readlines()
+    stats = [line_to_dict(line) for line in lines]
+    #stats = {stat['dev']: stat for stat in stats if stat['dev'] in partitions}
+    for stat in stats:
+        if stat['dev'] in partitions:
+            stats = {stat['dev']:stat}
+    return stats
+
+
 #:rrqm/s   : The number of read requests merged per second that were queued to the device.    #( rd_merges[1] - rd_merges[0] )
 #:wrqm/s   :
-#:r/s      : The number of read requests that were issued to the device per second.           #(rd_ios[1] - rd_ios[0]) #:w/s      : #:rkB/s    : The number of kilobytes read from the device per second.                         #( rd_sectors[1] - rd_sectors[0] ) * sector_size
+#:r/s      : The number of read requests that were issued to the device per second.           #(rd_ios[1] - rd_ios[0])
+#:w/s      :
+#:rkB/s    : The number of kilobytes read from the device per second.                         #( rd_sectors[1] - rd_sectors[0] ) * sector_size
 #:wkB/s    :
 
 #:avgrq-sz : (平均请求大小)The average size **in sectors** of the requests that were issued to the device.
@@ -173,11 +165,13 @@ def call_iostat(dev, interval):
             return line_to_dict(line)
 
 def check():
-    stateContent = getStateContent(stateFile)
-    nowStateDict = setStateDict(stateContent)
-    lastStateDict = readLastState(nowStateDict)
-    stat = calc(lastStateDict,nowStateDict)
-    printstat(stat)
+
+    while True:
+        stat = tick()
+        if stat:
+            printstat(stat['sda'])
+        #time.sleep(10)
+        printstat(call_iostat('sda', 10))
 
 if __name__ == "__main__":
     #main()
