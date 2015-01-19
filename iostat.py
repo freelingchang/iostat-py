@@ -96,7 +96,7 @@ def calc(last, curr):
     stat['wkB/s']    = diff('w_sec') * SECTOR_SIZE / 1024
 
     stat['avqqu-sz'] = diff('rq_ticks') / 1000
-    print 'tot_ticks', curr['tot_ticks'], last['tot_ticks']
+    #print 'tot_ticks', curr['tot_ticks'], last['tot_ticks']
     stat['util']     = diff('tot_ticks')/10 #???
 
     if diff('r_ios') + diff('w_ios') > 0:
@@ -110,67 +110,12 @@ def calc(last, curr):
 
     return stat
 
-last = None
-def tick():
-    global last
-    curr = disk_io_counters()
-    if not last:
-        last =  curr
-        return
-
-    stat = {}
-    for dev in curr.keys():
-        stat[dev] = calc(last[dev], curr[dev])
-    last = curr
-    return stat
-
 
 def printstat(stat):
     print datetime.now(),
     for k, v in stat.items():
         print '%s: %.2f' % (k, float(v)) ,
     print ''
-
-def main():
-    """docstring for main"""
-    pprint(disk_io_counters())
-    while True:
-        stat = tick()
-        if stat:
-            for dev in stat.keys():
-                print dev,
-                printstat(stat[dev])
-        time.sleep(10)
-
-def call_iostat(dev, interval):
-    cmd = 'iostat -kxt %d 2' % interval
-    out = commands.getoutput(cmd)
-    lines = out.split('\n')
-    lines.reverse()
-
-    def line_to_dict(line):
-        #Device:         rrqm/s   wrqm/s     r/s     w/s    rkB/s    wkB/s avgrq-sz avgqu-sz   await  svctm  %util
-        fields = line.split()
-
-        stat = {}
-        stat['rrqm/s']   = fields[1]
-        stat['wrqm/s']   = fields[2]
-        stat['r/s']      = fields[3]
-        stat['w/s']      = fields[4]
-        stat['rkB/s']    = fields[5]
-        stat['wkB/s']    = fields[6]
-
-        stat['avgrq-sz'] = fields[7]
-        stat['avqqu-sz'] = fields[8]
-
-        stat['await']    = fields[9]
-        stat['svctm']    = fields[10]
-        stat['util']     = fields[11]
-        return stat
-
-    for line in lines:
-        if line.startswith(dev):
-            return line_to_dict(line)
 
 def check():
     stateContent = getStateContent(stateFile)
@@ -180,7 +125,6 @@ def check():
     printstat(stat)
 
 if __name__ == "__main__":
-    #main()
     check()
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
