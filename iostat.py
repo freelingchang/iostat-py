@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 #coding: utf-8
-#file   : iostat.py
-#author : ning
-#date   : 2014-05-18 17:37:10
+#file   : iostat.py 
+#author : freelingchang
+#修改使支持2.6
 
 
 import os
@@ -24,9 +24,10 @@ LOGPATH = os.path.join(WORKDIR, 'log/iostat.log')
 sys.path.append(os.path.join(WORKDIR, 'lib/'))
 
 def tonum(n):
-    if n.isdigit():
-        return int(n)
-    return n
+    if type(n) == type(''):
+        if n.isdigit():
+            return int(n)
+        return n
 
 def disk_io_counters():
     lines = file("/proc/partitions").readlines()[2:]
@@ -35,13 +36,21 @@ def disk_io_counters():
     def line_to_dict(line):
         major, minor, dev, r_ios, r_merges, r_sec, r_ticks, w_ios, w_merges, w_sec, w_ticks, ios_pgr, tot_ticks, rq_ticks = line.split()
         del line
-        d = {k: tonum(v) for k, v in locals().items() }
+        d = {}
+        #d = {k: tonum(v) for k, v in locals().items() }
+        for k  in locals().items():
+        #    print k[1]
+            d[k[0]] = tonum(k[1])
+            
         d['ts'] = time.time()
         return d
 
     lines = file("/proc/diskstats").readlines()
     stats = [line_to_dict(line) for line in lines]
-    stats = {stat['dev']: stat for stat in stats if stat['dev'] in partitions}
+    #stats = {stat['dev']: stat for stat in stats if stat['dev'] in partitions}
+    for stat in stats:
+        if stat['dev'] in partitions:
+            stats = {stat['dev']:stat}
     return stats
 
 
